@@ -1,0 +1,31 @@
+[Unit]
+Description=ValKey RDB Backup for Geodineum
+After=valkey-gnode.service
+# Wants= so manual or timer-fired runs auto-start the
+# ValKey unit if it isn't already up; After= alone only orders it.
+Wants=valkey-gnode.service
+
+[Service]
+Type=oneshot
+User=gnode
+Group=gnode
+ExecStart=/opt/geodineum/Geodineum-BAK/scripts/backup-valkey.sh --keep 30 --backup-dir /opt/geodineum/Geodineum-BAK/backups/valkey
+
+# Sandbox hardening. The script reads the RDB
+# from /var/lib/valkey-gnode (under ProtectSystem=strict it stays
+# read-only — fine, we only `cp` it elsewhere) and writes backups +
+# .meta files into the backup directory below.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/geodineum/Geodineum-BAK/backups
+
+StandardOutput=journal
+StandardError=journal

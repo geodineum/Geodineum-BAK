@@ -1,7 +1,12 @@
+# Hidden files/dirs — strict policy: keep them out
+.*
+!.gitignore
+!.gitattributes
+
 # ==============================================================================
-# GSD-BAK .gitignore
+# Geodineum-BAK .gitignore
 # ==============================================================================
-# Deployment, backup, and log management infrastructure for GSD
+# ValKey backup + ecosystem log-rotation infrastructure
 # ==============================================================================
 
 # ------------------------------------------------------------------------------

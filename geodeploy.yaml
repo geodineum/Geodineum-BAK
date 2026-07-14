@@ -1,0 +1,23 @@
+runtime:
+  # owner resolved at runtime from GEODEPLOY_DEPLOY_USER / DEPLOY_USER /
+  # /etc/geodineum/deploy.env (supersedes the literal
+  # `${DEPLOY_USER}` placeholder, which yaml.safe_load doesn't expand).
+  group: gnode
+
+triggers:
+  - match: "**/*.sh|**/*.bash"
+    actions: [chmod-scripts]
+
+dirty-tree:
+  strategy: stash
+
+cli:
+  commands:
+    - name: bak contract
+      handler: scripts/cli/bak-contract.sh
+      description: Print the Geodineum-BAK integration contract (backup, logrotate, systemd timer, ValKey ACL)
+      category: Backup
+    - name: bak status
+      handler: scripts/cli/bak-status.sh
+      description: Show backup timer status, last run, and backup inventory
+      category: Backup
