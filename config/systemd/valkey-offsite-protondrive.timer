@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily offsite push (after the 02:00 local backup)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -151,3 +151,18 @@ Operator-relevant risks (design, not divergence):
 - ⚠️ **No integrity test-restore** — size + MD5 only; silent RDB corruption is possible (rare).
 - ⚠️ **Per-service `.backup.*` hints are introspective only** — logged counts, NOT selective backup; the RDB always includes all data (backup-valkey.sh:350 comment).
 - ⚠️ **Timer depends on systemd** — if the timer is disabled/uninstalled there are no automatic backups; manual invocation is the only fallback.
+
+## Offsite: Proton Drive push (optional)
+
+- `scripts/offsite-protondrive.sh` uploads the newest `dump_*.rdb` (+ `.meta`)
+  to Proton Drive at `/geodineum-backups/<hostname>/` via the official
+  `proton-drive` CLI (`/usr/local/bin/proton-drive`, install + SHA-512-verified
+  by the operator setup script). Remote rotation keeps the newest
+  `PROTON_KEEP_REMOTE` (default 14) snapshots.
+- Schedule: `valkey-offsite-protondrive.timer` daily 02:30 (after the 02:00
+  local backup); `After=/Wants=valkey-backup.service`.
+- Auth: one-time browser login (`proton-drive auth login`) as the timer's user
+  (root); headless nodes complete it via an `ssh -L <port>` forward of the
+  CLI's localhost callback. Unauthenticated runs fail loudly with the fix.
+- Env overrides: `BACKUP_DIR`, `PROTON_REMOTE_ROOT`, `PROTON_BIN`,
+  `PROTON_KEEP_REMOTE`.

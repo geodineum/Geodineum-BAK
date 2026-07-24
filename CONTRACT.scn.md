@@ -73,3 +73,4 @@ RISK: `--keep` 7-vs-30 divergence ⚠ · ACL no pre-flight ⚠ · BGSAVE 60s→s
 - "--keep divergence: script default 7 vs production timer 30 — operator owns runbook"
 - "ProtectSystem=strict single ReadWritePaths=…/backups — sandbox blocks unexpected writes"
 - "logrotate-geodineum.conf ecosystem-wide /var/log/geodineum/*; BAK logs to journal not its own file"
+- "offsite-protondrive.sh: newest dump_*.rdb+meta → proton-drive fs upload /geodineum-backups/<host>/; timer 02:30 After=valkey-backup; auth=browser login as root (ssh -L callback forward on headless); remote keep=14; fails loud when unauthenticated"

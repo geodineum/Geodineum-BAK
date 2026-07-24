@@ -1,0 +1,8 @@
+[Unit]
+Description=Offsite push of the newest ValKey snapshot to Proton Drive
+After=valkey-backup.service
+Wants=valkey-backup.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/geodineum/Geodineum-BAK/scripts/offsite-protondrive.sh
