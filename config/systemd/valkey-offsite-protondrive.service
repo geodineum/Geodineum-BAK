@@ -5,4 +5,7 @@ Wants=valkey-backup.service
 
 [Service]
 Type=oneshot
+# Headless: no Secret Service on a server - file-backed session store
+# (0600 under root's cache; same threat model as the RDB on the same disk).
+Environment=PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file
 ExecStart=/opt/geodineum/Geodineum-BAK/scripts/offsite-protondrive.sh

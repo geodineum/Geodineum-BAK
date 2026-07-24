@@ -10,6 +10,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="${BACKUP_DIR:-$PROJECT_ROOT/backups/valkey}"
 REMOTE_ROOT="${PROTON_REMOTE_ROOT:-/geodineum-backups/$(hostname -s)}"
 PROTON_BIN="${PROTON_BIN:-/usr/local/bin/proton-drive}"
+export PROTON_DRIVE_CREDENTIALS_STORE="${PROTON_DRIVE_CREDENTIALS_STORE:-unsafe_file}"
 KEEP_REMOTE="${PROTON_KEEP_REMOTE:-14}"
 
 log() { echo "[offsite-protondrive] $*"; }
