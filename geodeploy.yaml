@@ -1,3 +1,9 @@
+# Not auto-deployed. Backup/offsite tooling: the orchestrator re-asserts its
+# permissions every cycle via geodeploy_fix_bak_perms but deliberately never
+# pulls it, so a bad upstream commit cannot take the backup path down with the
+# same cycle that broke everything else. Declared so coverage stays quiet.
+unmanaged: true
+
 runtime:
   # owner resolved at runtime from GEODEPLOY_DEPLOY_USER / DEPLOY_USER /
   # /etc/geodineum/deploy.env (supersedes the literal
