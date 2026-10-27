@@ -21,13 +21,11 @@ ecosystem's logrotate configuration. On a schedule it takes a fresh RDB snapshot
 of the ValKey instance gNode and COMMS share, verifies it, and rotates old
 snapshots - nothing more.
 
-It is deliberately narrow. An optional offsite push sends each night's snapshot to
-Proton Drive (CONTRACT.md, Offsite); beyond that, off-node durability is ValKey
-replication's job, not this component's: BAK exists to recover a single node from corruption (a
-bad RDB, a ransomware event, a fat-fingered `DEL`), not from losing the node
-itself. There is no remote push, and adding one would multiply the failure
-surface without solving anything replication doesn't already solve at the right
-layer.
+It is deliberately narrow: it recovers a node from corruption (a bad RDB, a
+ransomware event, a fat-fingered `DEL`). An optional offsite push sends each
+night's snapshot to Proton Drive after a successful backup, so a copy survives
+losing the node itself (CONTRACT.md, Offsite). Live failover stays ValKey
+replication's job.
 
 ## Public build surface
 
