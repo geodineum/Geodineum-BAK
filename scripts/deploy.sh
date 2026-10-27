@@ -49,7 +49,7 @@ if [[ "$HEAD_WAS" != "$TARGET" ]]; then
 fi
 run chown -R root:gnode "$B/scripts"
 run find "$B/scripts" \( -type d -o -name '*.sh' \) -exec chmod 0750 {} +
-if (( APPLY )); then
+if (( APPLY )) && [[ "$HEAD_WAS" != "$TARGET" ]]; then
     echo "  at $(git_root rev-parse --short HEAD); to go back:"
     echo "    on $H: sudo git -c safe.directory=$B -C $B reset -q --hard ${HEAD_WAS:0:7} && sudo chown -R $G $B/.git"
 fi
