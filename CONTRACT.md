@@ -155,14 +155,29 @@ Operator-relevant risks (design, not divergence):
 ## Offsite: Proton Drive push (optional)
 
 - `scripts/offsite-protondrive.sh` uploads the newest `dump_*.rdb` (+ `.meta`)
-  to Proton Drive at `/geodineum-backups/<hostname>/` via the official
-  `proton-drive` CLI (`/usr/local/bin/proton-drive`, install + SHA-512-verified
-  by the operator setup script). Remote rotation keeps the newest
-  `PROTON_KEEP_REMOTE` (default 14) snapshots.
-- Schedule: `valkey-offsite-protondrive.timer` daily 02:30 (after the 02:00
-  local backup); `After=/Wants=valkey-backup.service`.
-- Auth: one-time browser login (`proton-drive auth login`) as the timer's user
-  (root); headless nodes complete it via an `ssh -L <port>` forward of the
-  CLI's localhost callback. Unauthenticated runs fail loudly with the fix.
+  to Proton Drive at `/geodineum-backups/<hostname>/` via the `proton-drive` CLI
+  (`/usr/local/bin/proton-drive`, installed by the operator). Remote rotation
+  keeps the newest `PROTON_KEEP_REMOTE` (default 14) snapshots.
+- Trigger: `valkey-offsite-protondrive.service` (oneshot, root) is started by
+  `valkey-backup.service` on success, through the drop-in
+  `valkey-backup.service.d/offsite.conf` (`OnSuccess=`, systemd 249+), so each
+  push sends the snapshot that run just wrote. There is no offsite timer and no
+  `Wants=` on the backup (that started a second backup every night).
+- Auth: one-time browser login (`proton-drive auth login`) as root; headless
+  nodes complete it via an `ssh -L <port>` forward of the CLI's localhost
+  callback. Unauthenticated runs fail loudly with the fix.
+- Switched on only by `scripts/deploy.sh --apply`, and only once the CLI has the
+  `filesystem list|upload|mkdir|remove` subcommands the script uses and root is
+  logged in; it then makes one push and checks it is listed on the remote.
+
+## Deploy
+
+The orchestrator never pulls BAK (`unmanaged: true`): a bad upstream commit must
+not take the backup path down with the cycle that broke everything else. Its
+deploy path is `sudo bash <another checkout>/scripts/deploy.sh [--apply]`: the
+pending commits, every incoming script must parse, fast-forward only (a dirty or
+diverged checkout stops it), permissions (`scripts/` root:gnode 0750), the
+offsite unit, then offsite as above. The daily orchestrator coverage check names
+an unmanaged checkout that is behind its origin.
 - Env overrides: `BACKUP_DIR`, `PROTON_REMOTE_ROOT`, `PROTON_BIN`,
   `PROTON_KEEP_REMOTE`.
