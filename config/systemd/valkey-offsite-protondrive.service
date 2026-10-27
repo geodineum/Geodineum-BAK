@@ -1,7 +1,7 @@
 [Unit]
 Description=Offsite push of the newest ValKey snapshot to Proton Drive
-After=valkey-backup.service
-Wants=valkey-backup.service
+# Started by valkey-backup.service on success (valkey-backup.service.d/offsite.conf), so it always
+# pushes the snapshot that run just wrote. No Wants=: that would start a second backup.
 
 [Service]
 Type=oneshot
@@ -9,3 +9,6 @@ Type=oneshot
 # (0600 under root's cache; same threat model as the RDB on the same disk).
 Environment=PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file
 ExecStart=/opt/geodineum/Geodineum-BAK/scripts/offsite-protondrive.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min
