@@ -65,12 +65,13 @@ run systemctl daemon-reload
 step 5/5 "offsite: Proton Drive"
 if (( ! OFFSITE )); then echo "  skipped (--no-offsite)"; exit 0; fi
 [[ -x "$PROTON_BIN" ]] || die "no proton-drive CLI at $PROTON_BIN; install it, then run this again"
-help="$("$PROTON_BIN" filesystem --help 2>&1 || true)"
-missing=""; for c in list upload mkdir remove; do grep -qw "$c" <<<"$help" || missing+=" $c"; done
-[[ -z "$missing" ]] || { echo "$help" | head -30; die "the CLI has no filesystem$missing, which offsite-protondrive.sh uses; fix the script before turning offsite on"; }
-echo "  CLI has filesystem list, upload, mkdir, remove"
-if ! "$PROTON_BIN" filesystem list / >/dev/null 2>&1; then
-    echo "  not logged in as root. Log in once (a browser login; on a headless node forward the CLI's callback port):"
+usage="$({ "$PROTON_BIN" --help; "$PROTON_BIN"; } 2>&1 || true)"
+missing=""; for c in list info create-folder upload delete; do grep -qE "filesystem ${c}( |\$)" <<<"$usage" || missing+=" ${c}"; done
+[[ -z "$missing" ]] || { echo "$usage" | head -30; die "the CLI has no filesystem${missing}, which offsite-protondrive.sh uses; fix the script before turning offsite on"; }
+echo "  CLI has filesystem list, info, create-folder, upload, delete"
+if ! said="$("$PROTON_BIN" filesystem list / 2>&1)"; then
+    echo "  listing the drive root failed; the CLI said: $(head -c 300 <<<"$said")"
+    echo "  If that is a login problem, log in once as root (a browser login; on a headless node forward the CLI's callback port):"
     echo "    on $H: sudo env PROTON_DRIVE_CREDENTIALS_STORE=unsafe_file $PROTON_BIN auth login"
     echo "  then run this again with --apply. Offsite stays off until then."
     exit 0

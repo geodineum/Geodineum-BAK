@@ -157,7 +157,8 @@ Operator-relevant risks (design, not divergence):
 - `scripts/offsite-protondrive.sh` uploads the newest `dump_*.rdb` (+ `.meta`)
   to Proton Drive at `/geodineum-backups/<hostname>/` via the `proton-drive` CLI
   (`/usr/local/bin/proton-drive`, installed by the operator). Remote rotation
-  keeps the newest `PROTON_KEEP_REMOTE` (default 14) snapshots.
+  keeps the newest `PROTON_KEEP_REMOTE` (default 14) snapshots, chosen by name
+  (`dump_YYYYmmdd_HHMMSS.rdb`) from the folder's listing; only those names are ever deleted.
 - Trigger: `valkey-offsite-protondrive.service` (oneshot, root) is started by
   `valkey-backup.service` on success, through the drop-in
   `valkey-backup.service.d/offsite.conf` (`OnSuccess=`, systemd 249+), so each
@@ -167,7 +168,7 @@ Operator-relevant risks (design, not divergence):
   nodes complete it via an `ssh -L <port>` forward of the CLI's localhost
   callback. Unauthenticated runs fail loudly with the fix.
 - Switched on only by `scripts/deploy.sh --apply`, and only once the CLI has the
-  `filesystem list|upload|mkdir|remove` subcommands the script uses and root is
+  `filesystem list|info|create-folder|upload|delete` subcommands the script uses and root is
   logged in; it then makes one push and checks it is listed on the remote.
 
 ## Deploy
