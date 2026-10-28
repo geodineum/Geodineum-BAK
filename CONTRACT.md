@@ -173,6 +173,9 @@ Operator-relevant risks (design, not divergence):
 - Restore, on the machine with the private key:
   `gpg -d sites_….tar.zst.gpg | zstd -d | tar -x` → `var/www/…`, `etc/apache2/sites-available/…`,
   `mysql/<db>.sql.zst` (`zstd -dc <db>.sql.zst | mysql <db>`), `valkey/dump_….rdb`.
+- Each run writes `/var/lib/geodineum-watch/sites-backup.status` (root:adm 0640; `ok_ms`, `run_ms`, `error`,
+  `max_age_h=26`); the hourly COMMS watch alerts on Telegram on a failed run, or when no run has succeeded in 26 h.
+  The log itself is the journal: `journalctl -u sites-backup.service`.
 - Enabled by `scripts/deploy.sh --apply` once the setup has run; it then runs one backup.
 
 ## Offsite: Proton Drive push (optional, parked)

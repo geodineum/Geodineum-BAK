@@ -21,6 +21,6 @@ ProtectControlGroups=true
 RestrictRealtime=true
 LockPersonality=true
 RestrictSUIDSGID=true
-ReadWritePaths=/run/mysqld
+ReadWritePaths=/run/mysqld /var/lib/geodineum-watch
 StandardOutput=journal
 StandardError=journal

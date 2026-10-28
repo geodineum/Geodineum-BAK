@@ -67,6 +67,7 @@ run systemctl daemon-reload
 step 5/6 "sites backup: Storage Box"
 SB_CONF=/etc/geodineum-sites-backup
 if [[ -r "$SB_CONF/storagebox.env" && -f "$SB_CONF/id_ed25519" && -f "$SB_CONF/recipient.asc" ]]; then
+    run install -d -m 0750 -o root -g adm /var/lib/geodineum-watch
     run systemctl enable --now sites-backup.timer
     if (( APPLY )); then
         echo "  running one backup now (a few minutes)"

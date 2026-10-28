@@ -11,9 +11,20 @@ KEEP_MONTHLY="${KEEP_MONTHLY:-12}"
 VALKEY_BACKUPS="${VALKEY_BACKUPS:-/opt/geodineum/Geodineum-BAK/backups/valkey}"
 SOURCES=(var/www etc/apache2/sites-available)
 NAME_RE='sites_[0-9]{8}_[0-9]{6}\.tar\.zst\.gpg'
+# Read hourly by the COMMS watch (group adm), which alerts on a failed run or no success in max_age_h.
+STATUS="${SITES_BACKUP_STATUS:-/var/lib/geodineum-watch/sites-backup.status}"
+RECORDED=0
 
 log() { echo "[sites-backup] $*"; }
-die() { log "FAILED: $*"; exit 1; }
+record() {
+    [[ -w "$(dirname "$STATUS")" ]] || return 0
+    local now ok; now="$(date +%s%3N)"; ok="$(sed -n 's/^ok_ms=//p' "$STATUS" 2>/dev/null)"
+    [[ -z "$1" ]] && ok="$now"
+    printf 'what=sites backup to the Storage Box\nmax_age_h=26\nok_ms=%s\nrun_ms=%s\nerror=%s\n' "${ok:-0}" "$now" "${1//$'\n'/ }" >"$STATUS.tmp" || return 0
+    chgrp adm "$STATUS.tmp" 2>/dev/null; chmod 0640 "$STATUS.tmp"; mv -f "$STATUS.tmp" "$STATUS"
+    RECORDED=1
+}
+die() { log "FAILED: $*"; record "$*"; exit 1; }
 
 # Archives to delete: all but the newest KEEP_DAILY, and the oldest of each of the newest KEEP_MONTHLY months.
 pick_victims() {
@@ -23,6 +34,9 @@ pick_victims() {
               for (i = 1; i <= NR; i++) if (i > d && !(i in keep)) print n[i] }'
 }
 [[ "${1:-}" == --pick-victims ]] && { pick_victims; exit 0; }
+RUN=""
+on_exit() { local rc=$?; [[ -n "$RUN" ]] && rm -rf "$RUN"; (( rc == 0 || RECORDED )) || record "stopped with exit code $rc"; }
+trap on_exit EXIT
 
 [[ $EUID -eq 0 ]] || die "run as root (systemctl start sites-backup.service)"
 [[ -r "$CONF_DIR/storagebox.env" ]] || die "no $CONF_DIR/storagebox.env; run scripts/storagebox-setup.sh first"
@@ -38,7 +52,6 @@ mkdir -m 0700 -p "$WORK"
 exec 9>"$WORK/.lock"
 flock -n 9 || { log "another run holds the lock; skipping"; exit 0; }
 RUN="$WORK/run"; rm -rf "$RUN"; mkdir -m 0700 -p "$RUN/stage/mysql" "$RUN/stage/valkey" "$RUN/gnupg"
-trap 'rm -rf "$RUN"' EXIT
 STAMP="$(date -u +%Y%m%d_%H%M%S)"; OUT="$RUN/sites_${STAMP}.tar.zst.gpg"
 
 MYSQL_OPTS=(); [[ -r /etc/mysql/debian.cnf ]] && MYSQL_OPTS=(--defaults-file=/etc/mysql/debian.cnf)
@@ -76,3 +89,4 @@ fi
 kept=$(( $(grep -cE "$NAME_RE" <<<"$listing") - ${#victims[@]} ))
 total=$(awk '$NF ~ /sites_[0-9_]+\.tar\.zst\.gpg$/ {s += $5} END {printf "%.1f", s / 1073741824}' <<<"$listing")
 log "done: $(basename "$OUT") on $BOX_HOST:$BOX_DIR; $kept archives kept (keep $KEEP_DAILY daily + $KEEP_MONTHLY monthly; ${total} GiB before pruning)"
+record ""
