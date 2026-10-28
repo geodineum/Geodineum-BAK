@@ -1,0 +1,26 @@
+[Unit]
+Description=Sites backup to the Hetzner Storage Box (encrypted)
+After=network-online.target mysql.service valkey-backup.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/geodineum/Geodineum-BAK/scripts/backup-sites.sh
+CacheDirectory=geodineum-sites-backup
+CacheDirectoryMode=0700
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictSUIDSGID=true
+ReadWritePaths=/run/mysqld
+StandardOutput=journal
+StandardError=journal

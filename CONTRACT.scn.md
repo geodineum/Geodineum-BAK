@@ -2,7 +2,7 @@
 > one-line: SCN primer — TRUTH = code on disk, this file is a point-in-time compression. Companion: CONTRACT.md (authoritative).
 
 ## ::ROLE
-Geodineum-BAK = Chapter-1 backup infrastructure. Stateless, **daemon-less** single-purpose orchestrator: daily systemd timer → oneshot service → one bash script that BGSAVEs ValKey, size-verifies an RDB copy (≥100 B) and fingerprints it with MD5 into `.meta`, writes `.meta`, rotates N. Also ships ecosystem `logrotate` config + Nginx `deny` config. **Local-only**: ∀ off-node durability ∈ ValKey replication; BAK owns single-node point-in-time snapshots only. No remote push, no encryption, no PiTR, no daemon, no plugin layer.
+Geodineum-BAK = Chapter-1 backup infrastructure. Stateless, **daemon-less** single-purpose orchestrator: daily systemd timer → oneshot service → one bash script that BGSAVEs ValKey, size-verifies an RDB copy (≥100 B) and fingerprints it with MD5 into `.meta`, writes `.meta`, rotates N. Also ships ecosystem `logrotate` config + Nginx `deny` config. ValKey snapshots local; optional nightly encrypted sites backup → Hetzner Storage Box (backup-sites.sh). No PiTR, no daemon, no plugin layer.
 
 ## ::ANCHOR
 - Core exec: `scripts/backup-valkey.sh` (backup-valkey.sh:1-389). BGSAVE 227 · LASTSAVE poll 224,230-249 · copy 265 + `chmod 640` 266 + size-verify 280-287 + md5 300 · `.meta` gen 290-308 · rotate 356-374 · flock `-n` `.backup-valkey.lock` 144-145 (contention→exit 0, 147) · whitelist gate 209-217 · cred chain 31-63 · stdin-AUTH wrapper 165-181 · timestamp `+%Y%m%d_%H%M%S` 68.
@@ -44,7 +44,7 @@ CONSUMES ← ValKey (`valkey-gnode.service`) BGSAVE/LASTSAVE/CONFIG GET/INFO via
 - Single-node constellation recovery: BAK = local snapshot; ValKey replication = cross-node durability.
 
 ## ::LIMITATIONS
-- Local-only: no S3/rsync/borg/DC-2; cross-node durability ⇒ ValKey replication.
+- Off-node = the sites backup to one Storage Box only (no S3/borg/DC-2); live failover ⇒ ValKey replication.
 - No encryption (plaintext on disk; LUKS/fscrypt = operator).
 - No PiTR (snapshot-at-N; continuous window ⇒ enable ValKey AOF separately).
 - No selective restore (wholesale RDB; per-key ⇒ scratch instance + manual RESTORE).
@@ -74,4 +74,7 @@ RISK: `--keep` 7-vs-30 divergence ⚠ · ACL no pre-flight ⚠ · BGSAVE 60s→s
 - "ProtectSystem=strict single ReadWritePaths=…/backups — sandbox blocks unexpected writes"
 - "logrotate-geodineum.conf ecosystem-wide /var/log/geodineum/*; BAK logs to journal not its own file"
 - "offsite-protondrive.sh: newest dump_*.rdb+meta → proton-drive fs upload /geodineum-backups/<host>/; NO timer — valkey-backup.service OnSuccess= (drop-in valkey-backup.service.d/offsite.conf) starts it (no Wants=: that forced a 2nd backup/night); auth=browser login as root (ssh -L callback forward on headless); remote keep=14; fails loud when unauthenticated"
+- "backup-sites.sh: root, sites-backup.timer 02:40 UTC; tar /var/www + /etc/apache2/sites-available + mysqldump each db (.sql.zst) + newest valkey dump | zstd | gpg --recipient-file (node holds PUBLIC key only, cannot decrypt) → sites_YYYYmmdd_HHMMSS.tar.zst.gpg; rsync ssh -p23 → BOX_DIR (<host>/sites); box sha256sum == local; rotation by name: newest 30 + oldest of each of newest 12 months; conf /etc/geodineum-sites-backup (env, id_ed25519, known_hosts pinned, recipient.asc; 0700/0600, outside the config sweep)"
+- "storagebox-setup.sh: once as root --user uNNNNNN --pubkey file; refuses private/sign-only keys; install-ssh-key with password typed once into ssh, never stored; checks MySQL; mkdir on box; deploy.sh --apply then enables the timer + runs one backup"
+- "proton offsite PARKED: deploy.sh --proton only"
 - "deploy: orchestrator never pulls BAK (unmanaged); scripts/deploy.sh from another checkout = the path: pending · scripts parse · ff-only (dirty/diverged STOP) · perms · unit · offsite only if CLI has list/info/create-folder/upload/delete AND the root lists, then 1 push verified on remote; coverage check names an unmanaged checkout behind origin"

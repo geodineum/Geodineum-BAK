@@ -1,6 +1,6 @@
 # Geodineum-BAK — Integration Contract
 
-**Role:** Stateless, daemon-less backup orchestrator (Chapter-1 backup infrastructure). Runs a daily systemd timer that triggers a single bash script to take a ValKey RDB snapshot, verify it, write a `.meta` companion, and rotate old snapshots — plus ships ecosystem-wide logrotate and Nginx-deny config. Local-only: no remote replication, no off-node push. Off-node durability is delegated to ValKey replication.
+**Role:** Stateless, daemon-less backup orchestrator (Chapter-1 backup infrastructure). Runs a daily systemd timer that triggers a single bash script to take a ValKey RDB snapshot, verify it, write a `.meta` companion, and rotate old snapshots — plus ships ecosystem-wide logrotate and Nginx-deny config. The ValKey snapshots are local; an optional nightly sites backup (files, databases, the newest snapshot) goes encrypted to a Hetzner Storage Box. Live failover is ValKey replication's.
 
 > This file is the human-readable **integration contract** — what BAK provides, what it requires, the file/path/schedule tables, the credential/ACL expectation, and a copy-paste manual-run example. Code on disk is authoritative; this is a point-in-time compression. Companion: **[CONTRACT.scn.md](CONTRACT.scn.md)** (SCN primer).
 
@@ -152,7 +152,30 @@ Operator-relevant risks (design, not divergence):
 - ⚠️ **Per-service `.backup.*` hints are introspective only** — logged counts, NOT selective backup; the RDB always includes all data (backup-valkey.sh:350 comment).
 - ⚠️ **Timer depends on systemd** — if the timer is disabled/uninstalled there are no automatic backups; manual invocation is the only fallback.
 
-## Offsite: Proton Drive push (optional)
+## Sites backup: Hetzner Storage Box (optional)
+
+- `scripts/backup-sites.sh` (root, `sites-backup.timer` 02:40 UTC ±5 min, `Persistent=true`) packs
+  `/var/www`, `/etc/apache2/sites-available`, a `mysqldump` of every database (`<db>.sql.zst`) and the
+  newest ValKey snapshot into one `tar | zstd` stream, encrypted with GnuPG to the operator's
+  public key: `sites_YYYYmmdd_HHMMSS.tar.zst.gpg`. The node holds only the public key and cannot read
+  its own archives; the private key stays with the operator.
+- Upload: `rsync` over SSH port 23 to `<BOX_DIR>` (default `<hostname>/sites`), then the box's
+  `sha256sum` must equal the local one. Rotation by name only: the newest `KEEP_DAILY` (30) plus the
+  oldest archive of each of the newest `KEEP_MONTHLY` (12) months; nothing else on the box is touched.
+- Setup, once, as root: `scripts/storagebox-setup.sh --user uNNNNNN --pubkey <public-key.asc>`. It pins
+  the box's host key, makes a dedicated ed25519 key and installs it with the box's `install-ssh-key`
+  (the password is typed into ssh's prompt once and never stored), refuses a key file that holds a
+  private key, checks MySQL, creates the folder. Settings, key and recipient live in
+  `/etc/geodineum-sites-backup/` (root, 0700/0600), outside the config sweep.
+- The node's key reaches the whole box (or one folder, with a sub-account user `uNNNNNN-subN`). The
+  box's own snapshots, managed only from the Hetzner console, are what an intruder holding that key
+  cannot delete.
+- Restore, on the machine with the private key:
+  `gpg -d sites_….tar.zst.gpg | zstd -d | tar -x` → `var/www/…`, `etc/apache2/sites-available/…`,
+  `mysql/<db>.sql.zst` (`zstd -dc <db>.sql.zst | mysql <db>`), `valkey/dump_….rdb`.
+- Enabled by `scripts/deploy.sh --apply` once the setup has run; it then runs one backup.
+
+## Offsite: Proton Drive push (optional, parked)
 
 - `scripts/offsite-protondrive.sh` uploads the newest `dump_*.rdb` (+ `.meta`)
   to Proton Drive at `/geodineum-backups/<hostname>/` via the `proton-drive` CLI
@@ -167,7 +190,7 @@ Operator-relevant risks (design, not divergence):
 - Auth: one-time browser login (`proton-drive auth login`) as root; headless
   nodes complete it via an `ssh -L <port>` forward of the CLI's localhost
   callback. Unauthenticated runs fail loudly with the fix.
-- Switched on only by `scripts/deploy.sh --apply`, and only once the CLI has the
+- Switched on only by `scripts/deploy.sh --apply --proton`, and only once the CLI has the
   `filesystem list|info|create-folder|upload|delete` subcommands the script uses and root is
   logged in; it then makes one push and checks it is listed on the remote.
 
@@ -178,7 +201,7 @@ not take the backup path down with the cycle that broke everything else. Its
 deploy path is `sudo bash <another checkout>/scripts/deploy.sh [--apply]`: the
 pending commits, every incoming script must parse, fast-forward only (a dirty or
 diverged checkout stops it), permissions (`scripts/` root:gnode 0750), the
-offsite unit, then offsite as above. The daily orchestrator coverage check names
+units, the sites backup timer once set up (then one backup), and Proton only with `--proton`. The daily orchestrator coverage check names
 an unmanaged checkout that is behind its origin.
 - Env overrides: `BACKUP_DIR`, `PROTON_REMOTE_ROOT`, `PROTON_BIN`,
   `PROTON_KEEP_REMOTE`.

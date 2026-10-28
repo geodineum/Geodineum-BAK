@@ -22,9 +22,10 @@ of the ValKey instance gNode and COMMS share, verifies it, and rotates old
 snapshots - nothing more.
 
 It is deliberately narrow: it recovers a node from corruption (a bad RDB, a
-ransomware event, a fat-fingered `DEL`). An optional offsite push sends each
-night's snapshot to Proton Drive after a successful backup, so a copy survives
-losing the node itself (CONTRACT.md, Offsite). Live failover stays ValKey
+ransomware event, a fat-fingered `DEL`). An optional nightly sites backup sends the
+site files, every MySQL database and the newest snapshot, encrypted to the
+operator's public key, to a Hetzner Storage Box, so a copy survives losing the
+node itself (CONTRACT.md, Sites backup). Live failover stays ValKey
 replication's job.
 
 ## Public build surface
@@ -78,13 +79,13 @@ sudo -u gnode /opt/geodineum/Geodineum-BAK/scripts/backup-valkey.sh --keep 30
 
 ## Limits worth knowing
 
-- **Local-only - no off-node destination.** Cross-node durability is ValKey
-  replication; rsync/borg/S3 push, if you need it, belongs at a layer above this
-  component.
+- **One off-node destination.** The sites backup goes to a Hetzner Storage Box
+  over SSH; there is no S3/borg target. Cross-node durability is ValKey
+  replication.
 - **No point-in-time recovery.** Snapshots are periodic RDB copies; continuous
   durability is ValKey's `appendonly` (AOF), configured on ValKey, not here.
-- **No backup encryption.** Encrypt the mount point (LUKS / fscrypt); BAK does
-  not encrypt snapshots itself.
+- **Local snapshots are not encrypted.** Encrypt the mount point (LUKS / fscrypt);
+  only the off-node sites archives are encrypted (GnuPG, to the operator's key).
 - **Retention differs by entry point.** The production timer keeps 30 snapshots;
   the script's own default when run bare is 7 - pass `--keep 30` to match the
   timer.

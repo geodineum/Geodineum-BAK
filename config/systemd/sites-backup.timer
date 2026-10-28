@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly sites backup to the Hetzner Storage Box
+
+[Timer]
+OnCalendar=*-*-* 02:40:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
