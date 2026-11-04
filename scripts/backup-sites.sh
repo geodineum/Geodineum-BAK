@@ -18,7 +18,7 @@ RECORDED=0
 log() { echo "[sites-backup] $*"; }
 record() {
     [[ -w "$(dirname "$STATUS")" ]] || return 0
-    local now ok; now="$(date +%s%3N)"; ok="$(sed -n 's/^ok_ms=//p' "$STATUS" 2>/dev/null)"
+    local now ok; now="$(date +%s%3N)"; ok="$(sed -n 's/^ok_ms=//p' "$STATUS" 2>/dev/null || true)"
     [[ -z "$1" ]] && ok="$now"
     printf 'what=sites backup to the Storage Box\nmax_age_h=26\nok_ms=%s\nrun_ms=%s\nerror=%s\n' "${ok:-0}" "$now" "${1//$'\n'/ }" >"$STATUS.tmp" || return 0
     chgrp adm "$STATUS.tmp" 2>/dev/null; chmod 0640 "$STATUS.tmp"; mv -f "$STATUS.tmp" "$STATUS"
