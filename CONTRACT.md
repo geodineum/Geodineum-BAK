@@ -155,10 +155,13 @@ Operator-relevant risks (design, not divergence):
 ## Sites backup: Hetzner Storage Box (optional)
 
 - `scripts/backup-sites.sh` (root, `sites-backup.timer` 02:40 UTC ±5 min, `Persistent=true`) packs
-  `/var/www`, `/etc/apache2/sites-available`, a `mysqldump` of every database (`<db>.sql.zst`) and the
-  newest ValKey snapshot into one `tar | zstd` stream, encrypted with GnuPG to the operator's
+  `/var/www`, the node's configuration and credentials (`/etc/apache2`, `/etc/geodineum`, `/etc/letsencrypt`,
+  `/etc/php`, `/etc/opendkim`, `/etc/valkey`, `/etc/fail2ban`, `/etc/gshield`, `/etc/geoblock`, `/etc/postfix`,
+  `/etc/systemd/system`), `/var/lib` state, a `mysqldump` of every database (`<db>.sql.zst`), a consistent copy of
+  each SQLite store and the newest ValKey snapshot into one `tar | zstd` stream, encrypted with GnuPG to the operator's
   public key: `sites_YYYYmmdd_HHMMSS.tar.zst.gpg`. The node holds only the public key and cannot read
-  its own archives; the private key stays with the operator.
+  its own archives; the private key stays with the operator. `scripts/restore-drill.sh` proves an archive on the
+  operator's workstation.
 - Upload: `rsync` over SSH port 23 to `<BOX_DIR>` (default `<hostname>/sites`), then the box's
   `sha256sum` must equal the local one. Rotation by name only: the newest `KEEP_DAILY` (30) plus the
   oldest archive of each of the newest `KEEP_MONTHLY` (12) months; nothing else on the box is touched.

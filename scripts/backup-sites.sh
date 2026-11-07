@@ -1,7 +1,9 @@
 #!/bin/bash
-# Nightly sites backup to the Hetzner Storage Box: /var/www, every MySQL database, the newest ValKey
-# snapshot and the Apache vhosts, as one archive encrypted to the operator's public key (aesir holds no
-# key that can read it). Set up once with scripts/storagebox-setup.sh; run by sites-backup.timer.
+# Nightly backup of a whole node to the Hetzner Storage Box: /var/www, every MySQL database, the newest ValKey
+# snapshot, the node's configuration and credentials, and the local SQLite stores, as one archive encrypted to
+# the operator's public key (aesir holds no key that can read it). Restoring gives a node back, not only its
+# files: scripts/restore-drill.sh proves that on the workstation. Set up once with scripts/storagebox-setup.sh;
+# run by sites-backup.timer.
 set -euo pipefail
 
 CONF_DIR="${SITES_BACKUP_CONF:-/etc/geodineum-sites-backup}"
@@ -9,7 +11,10 @@ WORK="${CACHE_DIRECTORY:-/var/cache/geodineum-sites-backup}"
 KEEP_DAILY="${KEEP_DAILY:-30}"
 KEEP_MONTHLY="${KEEP_MONTHLY:-12}"
 VALKEY_BACKUPS="${VALKEY_BACKUPS:-/opt/geodineum/Geodineum-BAK/backups/valkey}"
-SOURCES=(var/www etc/apache2/sites-available)
+SOURCES=(var/www etc/apache2 etc/geodineum etc/geodineum-sites-backup/recipient.asc etc/letsencrypt etc/php etc/opendkim
+         etc/valkey etc/fail2ban etc/gshield etc/geoblock etc/postfix etc/systemd/system var/lib/geodineum var/lib/gshield
+         var/lib/gshield-decide var/lib/geodineum-sites var/lib/geodineum-watch)
+SQLITE_DIRS=(var/lib/geodineum-comms var/lib/gnode-comms var/lib/gflow)
 NAME_RE='sites_[0-9]{8}_[0-9]{6}\.tar\.zst\.gpg'
 # Read hourly by the COMMS watch (group adm), which alerts on a failed run or no success in max_age_h.
 STATUS="${SITES_BACKUP_STATUS:-/var/lib/geodineum-watch/sites-backup.status}"
@@ -67,7 +72,31 @@ rdb="$(ls -t "$VALKEY_BACKUPS"/dump_*.rdb 2>/dev/null | head -1 || true)"
 if [[ -n "$rdb" ]]; then cp "$rdb" "${rdb%.rdb}.meta" "$RUN/stage/valkey/" 2>/dev/null || cp "$rdb" "$RUN/stage/valkey/"
 else log "warning: no ValKey snapshot in $VALKEY_BACKUPS"; fi
 
-tar -C / -cf - "${SOURCES[@]}" -C "$RUN/stage" mysql valkey \
+# A live SQLite file copied raw can be torn: take each through its own backup, and everything else as it is.
+mkdir -m 0700 -p "$RUN/stage/sqlite"
+EXCLUDE=()
+for dir in "${SQLITE_DIRS[@]}"; do
+    [[ -d "/$dir" ]] || continue
+    while IFS= read -r -d '' db; do
+        rel="${db#/}"; mkdir -p "$RUN/stage/sqlite/$(dirname "$rel")"
+        python3 -I - "$db" "$RUN/stage/sqlite/$rel" <<'PY' || { log "warning: $db through a plain copy, its own backup failed"; cp "$db" "$RUN/stage/sqlite/$rel"; }
+import sqlite3, sys
+src = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True, timeout=30)
+dst = sqlite3.connect(sys.argv[2])
+with dst:
+    src.backup(dst)
+dst.close(); src.close()
+PY
+    done < <(find "/$dir" -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print0)
+    SOURCES+=("$dir")
+    EXCLUDE+=(--exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' --exclude='*.sqlite' --exclude='*.sqlite-wal' --exclude='*.sqlite-shm' --exclude='*.sqlite3' --exclude='*.sqlite3-wal' --exclude='*.sqlite3-shm')
+done
+PRESENT=(); for s in "${SOURCES[@]}"; do [[ -e "/$s" ]] && PRESENT+=("$s"); done
+log "sources: ${PRESENT[*]}"
+
+# Exit 1 is tar saying a live file changed while it read it: on a running node that is normal.
+tar_node() { tar -C / --warning=no-file-changed --warning=no-file-removed --ignore-failed-read "${EXCLUDE[@]}" -cf - "${PRESENT[@]}" -C "$RUN/stage" mysql valkey sqlite; local rc=$?; (( rc <= 1 )); }
+tar_node \
     | zstd -q -3 -T0 \
     | gpg --batch --quiet --homedir "$RUN/gnupg" --trust-model always --compress-algo none \
           --recipient-file "$CONF_DIR/recipient.asc" --encrypt -o "$OUT" \
