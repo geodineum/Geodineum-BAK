@@ -2,7 +2,7 @@
 > one-line: SCN primer — TRUTH = code on disk, this file is a point-in-time compression. Companion: CONTRACT.md (authoritative).
 
 ## ::ROLE
-Geodineum-BAK = Chapter-1 backup infrastructure. Stateless, **daemon-less** single-purpose orchestrator: daily systemd timer → oneshot service → one bash script that BGSAVEs ValKey, size-verifies an RDB copy (≥100 B) and fingerprints it with MD5 into `.meta`, writes `.meta`, rotates N. Also ships ecosystem `logrotate` config + Nginx `deny` config. ValKey snapshots local; optional nightly encrypted sites backup → Hetzner Storage Box (backup-sites.sh). No PiTR, no daemon, no plugin layer.
+Geodineum-BAK = Chapter-1 backup infrastructure. Stateless, **daemon-less** single-purpose orchestrator: daily systemd timer → oneshot service → one bash script that BGSAVEs ValKey, size-verifies an RDB copy (≥100 B) and fingerprints it with MD5 into `.meta`, writes `.meta`, rotates N. Also ships ecosystem `logrotate` config + Nginx `deny` config. ValKey snapshots local; optional nightly encrypted whole-node backup (incl. the newest RDB) → Hetzner Storage Box (backup-sites.sh), rotation 7 daily + 4 weekly + 12 monthly (≤ 23). No PiTR, no daemon, no plugin layer.
 
 ## ::ANCHOR
 - Core exec: `scripts/backup-valkey.sh` (backup-valkey.sh:1-389). BGSAVE 227 · LASTSAVE poll 224,230-249 · copy 265 + `chmod 640` 266 + size-verify 280-287 + md5 300 · `.meta` gen 290-308 · rotate 356-374 · flock `-n` `.backup-valkey.lock` 144-145 (contention→exit 0, 147) · whitelist gate 209-217 · cred chain 31-63 · stdin-AUTH wrapper 165-181 · timestamp `+%Y%m%d_%H%M%S` 68.

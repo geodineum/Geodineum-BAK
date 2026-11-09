@@ -8,7 +8,8 @@ set -euo pipefail
 
 CONF_DIR="${SITES_BACKUP_CONF:-/etc/geodineum-sites-backup}"
 WORK="${CACHE_DIRECTORY:-/var/cache/geodineum-sites-backup}"
-KEEP_DAILY="${KEEP_DAILY:-30}"
+KEEP_DAILY="${KEEP_DAILY:-7}"
+KEEP_WEEKLY="${KEEP_WEEKLY:-4}"
 KEEP_MONTHLY="${KEEP_MONTHLY:-12}"
 VALKEY_BACKUPS="${VALKEY_BACKUPS:-/opt/geodineum/Geodineum-BAK/backups/valkey}"
 SOURCES=(var/www etc/apache2 etc/geodineum etc/geodineum-sites-backup/recipient.asc etc/letsencrypt etc/php etc/opendkim
@@ -31,11 +32,15 @@ record() {
 }
 die() { log "FAILED: $*"; record "$*"; exit 1; }
 
-# Archives to delete: all but the newest KEEP_DAILY, and the oldest of each of the newest KEEP_MONTHLY months.
+# Archives to delete: all but the newest KEEP_DAILY, the oldest of each of the newest KEEP_WEEKLY ISO weeks and the
+# oldest of each of the newest KEEP_MONTHLY months (7 + 4 + 12 = at most 23 on the box; fewer where they coincide).
 pick_victims() {
-    sort -u -r | awk -v d="$KEEP_DAILY" -v m="$KEEP_MONTHLY" '
-        { n[NR] = $0; mon = substr($0, 7, 6); oldest[mon] = NR; if (!(mon in seen)) { seen[mon] = 1; months[++k] = mon } }
-        END { for (i = 1; i <= k && i <= m; i++) keep[oldest[months[i]]] = 1
+    sort -u -r | while read -r n; do printf '%s %s\n' "$n" "$(date -d "${n:6:8}" +%G%V)"; done | awk -v d="$KEEP_DAILY" -v w="$KEEP_WEEKLY" -v m="$KEEP_MONTHLY" '
+        { n[NR] = $1; wk = $2; mon = substr($1, 7, 6)
+          oldw[wk] = NR; if (!(wk in sw)) { sw[wk] = 1; weeks[++kw] = wk }
+          oldm[mon] = NR; if (!(mon in sm)) { sm[mon] = 1; months[++km] = mon } }
+        END { for (i = 1; i <= kw && i <= w; i++) keep[oldw[weeks[i]]] = 1
+              for (i = 1; i <= km && i <= m; i++) keep[oldm[months[i]]] = 1
               for (i = 1; i <= NR; i++) if (i > d && !(i in keep)) print n[i] }'
 }
 [[ "${1:-}" == --pick-victims ]] && { pick_victims; exit 0; }
@@ -117,5 +122,5 @@ if (( ${#victims[@]} )); then
 fi
 kept=$(( $(grep -cE "$NAME_RE" <<<"$listing") - ${#victims[@]} ))
 total=$(awk '$NF ~ /sites_[0-9_]+\.tar\.zst\.gpg$/ {s += $5} END {printf "%.1f", s / 1073741824}' <<<"$listing")
-log "done: $(basename "$OUT") on $BOX_HOST:$BOX_DIR; $kept archives kept (keep $KEEP_DAILY daily + $KEEP_MONTHLY monthly; ${total} GiB before pruning)"
+log "done: $(basename "$OUT") on $BOX_HOST:$BOX_DIR; $kept archives kept (keep $KEEP_DAILY daily + $KEEP_WEEKLY weekly + $KEEP_MONTHLY monthly; ${total} GiB before pruning)"
 record ""
