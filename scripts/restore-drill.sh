@@ -1,7 +1,7 @@
 #!/bin/bash
 # Prove an archive restores, on the workstation that holds the private key, into a throwaway folder that is
 # removed at the end. Nothing is restored over anything. Prints no secret.
-#   sftp -P 23 <box user>@<box host>:<box dir>/sites_<stamp>.tar.zst.gpg .
+#   on the node: sudo bash restore-drill-fetch.sh; here: scp <node>:restore-drill/sites_<stamp>.tar.zst.gpg .
 #   bash restore-drill.sh sites_<stamp>.tar.zst.gpg
 # Proves: it decrypts; the tar is whole; every expected part is there; each dump decompresses and ends complete;
 # each SQLite store passes integrity_check; the RDB passes valkey-check-rdb if you have it; one database really
@@ -38,11 +38,12 @@ for f in "$D"/mysql/*.sql.zst; do
     else bad "$(basename "$f"): truncated or corrupt"; fi
 done
 if command -v docker >/dev/null && [[ -n "$smallest" ]]; then
-    c="restore-drill-$$"; pw="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-    if docker run -d --rm --name "$c" -e MARIADB_ROOT_PASSWORD="$pw" -e MARIADB_DATABASE=drill mariadb:11 >/dev/null 2>&1; then
-        for _ in $(seq 120); do docker exec "$c" mariadb-admin -h127.0.0.1 -uroot -p"$pw" ping >/dev/null 2>&1 && break; sleep 1; done
-        if zstd -q -dc "$smallest" | docker exec -i "$c" mariadb -h127.0.0.1 -uroot -p"$pw" drill 2>"$D/imp.err"; then
-            t=$(docker exec "$c" mariadb -h127.0.0.1 -uroot -p"$pw" -N -e "select count(*) from information_schema.tables where table_schema='drill'")
+    # no network and no password: nothing outside the container can reach it, and no secret lands on a command line
+    c="restore-drill-$$"
+    if docker run -d --rm --network none --name "$c" -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 -e MARIADB_DATABASE=drill mariadb:11 >/dev/null 2>&1; then
+        for _ in $(seq 120); do docker exec "$c" mariadb-admin -uroot ping >/dev/null 2>&1 && break; sleep 1; done
+        if zstd -q -dc "$smallest" | docker exec -i "$c" mariadb -uroot drill 2>"$D/imp.err"; then
+            t=$(docker exec "$c" mariadb -uroot -N -e "select count(*) from information_schema.tables where table_schema='drill'")
             (( t >= 1 )) && ok "$(basename "$smallest") imported: $t tables" || bad "imported to 0 tables"
         else bad "import of $(basename "$smallest") failed: $(head -1 "$D/imp.err" | cut -c1-120)"; fi
         docker stop "$c" >/dev/null 2>&1
